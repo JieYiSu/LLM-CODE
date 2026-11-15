@@ -65,8 +65,7 @@ openai:
 
 The endpoint must provide an OpenAI-compatible chat-completions interface. Leave
 api_key or model empty to disable network calls; the optimizer then continues
-with its validated built-in operators. Never commit config.yaml, provider
-responses, or a response log. See SECURITY.md.
+with its validated built-in operators. 
 
 ## Run a small smoke test
 
@@ -162,8 +161,7 @@ python -m unittest discover -s tests -v
 Copy-Item config.example.yaml config.yaml
 ~~~
 
-然后只在本机的 config.yaml 中填写服务地址、模型名和 API 密钥。该文件已被
-.gitignore 排除，不能提交到 GitHub。更多安全要求见 SECURITY.md。
+然后只在本机的 config.yaml 中填写服务地址、模型名和 API 密钥。
 
 ## 研究协议
 
