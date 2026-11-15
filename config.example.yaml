@@ -1,0 +1,20 @@
+# Copy this file to config.yaml and fill in your provider settings locally.
+# config.yaml is ignored by Git and must never contain a committed secret.
+
+openai:
+  # OpenAI-compatible chat-completions endpoint.
+  url: "https://api.example.com/v1"
+  api_key: ""
+  model: "your-model-name"
+  timeout: 60
+  max_tokens: 1024
+  max_prompt_chars: 6000
+  json_mode: true
+  thinking: "disabled"
+  reasoning_effort: "none"
+
+  # Keep response logging disabled by default for public/reproducible runs.
+  response_log: false
+  response_log_path: "experiments/llm_responses.jsonl"
+  response_log_max_chars: 200000
+

@@ -1,0 +1,45 @@
+# Local configuration and credentials
+config.yaml
+config.local.yaml
+.env
+.env.*
+!.env.example
+
+# Python and tooling
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+.vscode/
+.idea/
+
+# Runtime state, checkpoints, provider responses, and experiment outputs
+experiments/checkpoints/
+experiments/unified_experiments/
+experiments/*_results/
+experiments/llm_responses.jsonl
+experiments/operator_knowledge.json
+experiments/operator_knowledge.json.tmp
+*.jsonl
+*.log
+*.tmp
+*.csv
+*.xlsx
+*.npz
+*.npy
+*.pdf
+*.png
+
+# Build and documentation artifacts
+evox/docs/build/
+evox/build/
+evox/dist/
+*.egg-info/
+

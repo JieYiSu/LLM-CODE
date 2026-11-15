@@ -1,0 +1,114 @@
+# EvoX — Distributed GPU-accelerated Evolutionary Computation Framework
+
+## Intent
+EvoX is a distributed GPU-accelerated evolutionary computation framework built on top of PyTorch. It ships 33 algorithm classes (32 distinct exported classes — `VirtualLoRAES` is an alias of `VirtualES`) and 22 user-facing `Problem` classes (~33 distinct benchmark functions/instances), with a programming model designed for scalability across CPUs and GPUs.
+
+**Core goals:**
+- **High performance**: GPU acceleration via PyTorch tensorization, `torch.compile`, and `vmap` vectorization, achieving 100x+ speedups over CPU baselines.
+- **All-in-one**: Single- and multi-objective optimization, meta-learning, hyperparameter optimization (HPO), and neuroevolution.
+- **Easy-to-use**: PyTorch-native, hierarchical component model (`Algorithm` → `Problem` → `Workflow`), one-click install.
+
+**Project metadata:** GPL-3.0-or-later, Python ≥3.10, PyTorch ≥2.6.0. Version 1.4.0 (current `pyproject.toml`).
+
+## Repository Structure
+
+```
+evox/
+├── src/evox/           ← Main Python package (the framework)
+├── src/evox_ext/       ← Extension/plugin autoloading (PEP 420 namespace)
+├── unit_test/          ← Unit test suite (mirrors src/evox/)
+├── benchmarks/         ← Performance benchmark scripts
+├── docs/               ← Sphinx documentation (ReadTheDocs, bilingual EN/ZH)
+├── .github/            ← CI/CD workflows + PR template
+├── pyproject.toml      ← Build config, deps, tool.ruff linting
+├── MANIFEST.in         ← Source distribution manifest
+├── flake.nix / flake.lock / dev_env_builder.nix  ← Nix dev environment
+├── .pre-commit-config.yaml
+├── .readthedocs.yaml
+├── README.md / README_ZH.md
+└── LICENSE
+```
+
+## Routing Table
+
+| Area | Path | Description |
+|---|---|---|
+| **Main package** | `src/evox/` | Core framework: algorithms, problems, operators, workflows, metrics, utils, visualization |
+| Core abstractions | `src/evox/core/` | `ModuleBase`, `Parameter`, `Mutable`, `compile`, `vmap`, `use_state` + component ABCs (`Algorithm`, `Problem`, `Workflow`, `Agent`, `Monitor`) |
+| Algorithms | `src/evox/algorithms/` | 33 EA classes (32 distinct — `VirtualLoRAES` aliases `VirtualES`): SO 27 (DE 6, ES 14, PSO 7) + MO 6 (NSGA2, NSGA3, RVEA, MoEAD, HypE, RVEAa) |
+| Problems | `src/evox/problems/` | Benchmark problems: numerical (CEC2022, DTLZ, basic), neuroevolution (Brax, MuJoCo, supervised learning), HPO wrapper |
+| Operators | `src/evox/operators/` | Genetic operators: selection, crossover, mutation, sampling (pure stateless tensor functions) |
+| Workflows | `src/evox/workflows/` | `StdWorkflow` (standard optimization loop) + `EvalMonitor` (fitness/elite tracking) |
+| Metrics | `src/evox/metrics/` | Multi-objective metrics: GD, HV, IGD |
+| Triton kernels | `src/evox/triton_kernels/` | Optional Triton GPU kernels with PyTorch fallback; `register_triton_op` decorator, backend detection |
+| Utilities | `src/evox/utils/` | JIT/vmap-compatible tensor ops, custom op registration, param↔vector conversion, PyTree re-exports |
+| Visualization | `src/evox/vis_tools/` | Plotly-based interactive plots + EvoXVision (.exv) binary serialization |
+| **Extensions** | `src/evox_ext/` | PEP 420 namespace-package plugin system; auto-discovers external algorithms, problems, operators, metrics, utils |
+| **Tests** | `unit_test/` | `unittest`-based; mirrors `src/evox/` structure; tests eager, `torch.compile`, and `vmap` modes |
+| **Benchmarks** | `benchmarks/` | PSO benchmark (eager vs compile vs max-autotune), `switch` micro-benchmark, reusable `test_base.py` |
+| **Documentation** | `docs/` | Sphinx + shibuya theme; autodoc2 API docs; MyST Markdown tutorials; bilingual (gettext .po + manual ZH translations) |
+| **CI/CD** | `.github/workflows/` | Python package build/test, PyPI publish, Ruff lint check, Discord bot notifications |
+
+## Key Architectural Concepts
+
+### Component Hierarchy
+All framework components inherit from `ModuleBase` (extends `torch.nn.Module`):
+```
+ModuleBase
+  ├── Algorithm   — Evolutionary search logic (step, init_step, evaluate proxy)
+  ├── Problem     — Fitness evaluation (evaluate)
+  ├── Workflow    — Orchestrates Algorithm + Problem + Monitor
+  ├── Agent       — Individual agent for RL-style tasks
+  └── Monitor     — Lifecycle callbacks for observation/logging
+```
+
+### Functional Programming Model
+- `Parameter(value)` — marks hyperparameters (stateless, fixed during search)
+- `Mutable(value)` — marks state tensors (population, fitness, velocities)
+- `use_state` — converts module methods to functional form for `vmap`
+- `compile` / `vmap` — PyTorch wrappers with scalar-index graph-break workarounds
+
+### Extension System
+External packages install into the `evox_ext` namespace package. At `import evox` time, `auto_load_extensions()` discovers and merges them into the corresponding `evox.*` modules (algorithms, problems, operators, metrics, utils).
+
+### Triton Kernel Integration
+Triton provides hand-written GPU kernels for performance-critical operations. The infrastructure is **optional** — Triton is an optional dependency (`pip install evox[triton]`). When available, `register_triton_op` registers both a PyTorch fallback (runs everywhere) and a Triton CUDA kernel. PyTorch's dispatcher auto-routes CUDA → Triton, CPU/other → PyTorch. Without Triton installed, only the PyTorch fallback is used and everything works normally.
+
+## Constraints
+- **Pure PyTorch**: No NumPy in framework code. All tensors must be PyTorch tensors for GPU compatibility.
+- **Compile-friendly**: Operators and algorithms must be `torch.compile`/`vmap` compatible. No Python control flow depending on tensor values.
+- **Minimization semantics**: All algorithms minimize internally; `StdWorkflow` applies `opt_direction` transforms for maximization.
+- **Monitor outside jit**: Monitors run outside the compiled graph. Use token-passing patterns for compile-safe history.
+- **Bilingual docs**: Documentation supports English and Simplified Chinese via ReadTheDocs language switching.
+- **Count claims kept in sync**: The ecosystem "140+ algorithms" / "240+ benchmark problems" counts and the built-in "30+ algorithms" / "30+ benchmark problems" counts are stated in this file, `README.md`, and `README_ZH.md` (EN + ZH); any change must be applied to all three.
+- **Descriptions vs counts**: `pyproject.toml` `[project] description` is just `"evox"` and carries no count claims — do not look there for them.
+
+## Release Process
+
+Version is single-sourced in `pyproject.toml` under `[project] version` (currently 1.4.0); there is no `__version__` defined in the package code.
+A release consists of: a commit bumping the version (message style `Bump version to vX.Y.Z`), a git tag `vX.Y.Z` on that commit, and a published GitHub Release.
+`.github/workflows/python-publish.yml` triggers on the GitHub `release` (published) event, builds with `python -m build`, and publishes to PyPI via trusted publishing (OIDC, no repo token).
+Trusted publishing requires a PyPI-side trusted-publisher entry for repo `EMI-Group/evox` / workflow `python-publish.yml`; a failing publish is usually a missing/mismatched entry there.
+Past release bumps also update the news entries in `README.md` and `README_ZH.md` (which link to an announcement post on evox.group) and the version mention in this file's project metadata above.
+
+## Related Projects (EMI-Group ecosystem)
+
+EvoX is one of ~13 sibling libraries published under https://github.com/EMI-Group/ .
+These are SEPARATE repos (not part of this source tree) and are the upstream homes of the `evox_ext` plugin family.
+Together with EvoX, these libraries form an ecosystem of 140+ algorithms and 240+ benchmark problems/environments.
+- **evomo** — PyTorch GPU-accelerated evolutionary multi-objective optimization (EMO). 57 tensorized MOEAs + 131 numerical/constrained benchmark problems (ZDT/DTLZ/WFG/MAF/LSMOP + CTP/MW/DOC/SDC/LSCM/LIRCMOP/DASCMOP/FCP) + MoRobtrol multi-objective robot-control suite.
+- **evorl** — JAX fully GPU-accelerated Evolutionary RL framework (RL/EA/ERL/PBT/multi-agent algorithms; wraps Brax/MuJoCo-Playground/gymnax/Jumanji/JaxMARL/EnvPool/Gymnasium).
+- **evogp** — PyTorch + custom CUDA kernels for Tree-based Genetic Programming (symbolic regression, classification, transformation, Brax/MuJoCo control).
+- **tensorneat** — JAX tensorized NEAT / HyperNEAT.
+- **tensoraco** — JAX tensorized Ant Colony Optimization for TSP (bundles the TSPLIB).
+- **evoxbench** — NAS-as-multi-objective-optimization benchmark platform (NAS-Bench-101/201, NATS, DARTS, MobileNetV3, ResNet50, Transformer, MoSegNAS); no GPU/PyTorch needed.
+- **tensorrvea**, **metade**, **istratde**, **evogo**, **autopso**, **evonas**, **evococo** — additional tensorized EC libraries/frameworks (RVEA, DE meta-framework, DE variant, data-driven black-box opt, automated PSO, NAS, automatic tensorization).
+- Research/paper repos (single-algorithm code, not general libraries): GMOEA, RelativeNAS, DenseNAS, nsganetv2, fr-nas, gpbt-pl, Incremental-Optimization, GMPB, BLVG.
+- Non-EC repos in the org (unrelated to EvoX): FaPN, PDVC, SoloGAN, mixer-snn, spikefpn, snn-temporal-fusion, spikingedn, SFLM, mesa, genesis, evox-portal (website).
+The official website https://evox.group/ is built from the SEPARATE repo `EMI-Group/evox-portal` (Astro).
+Its algorithm/problem count claims live in `src/i18n/locales/*.json` (`features.allinone.item1`, `runtime.hero.desc`) and in `src/content/tutorials/introduction/en.md` — editing counts in THIS repository does not update the website, they must be synced separately.
+Pages under `src/content/releases/*` are historical release announcements and intentionally keep the numbers of the release they describe.
+
+## Known Issues
+
+`docs/source/tutorial/tutorial_part2.md` references `evox.__version__`, but the attribute is not defined anywhere in `src/evox/` — it raises AttributeError at runtime (doc bug only).
